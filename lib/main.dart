@@ -75,12 +75,16 @@ final List<String> _categorias = [
 ];
 final List<Produto> _carrinho = [];
 
-void main() async { // Executa quando o app é iniciado
+void main() async {
+  // Executa quando o app é iniciado
   WidgetsFlutterBinding.ensureInitialized(); // Incia alguns plugins do Flutter, como o Firebase
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform); // Incia o Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  ); // Incia o Firebase
 
   try {
-    await FirebaseAuth.instance.signInAnonymously(); // Cria uma sessão temporária que não exige cadastro
+    await FirebaseAuth.instance
+        .signInAnonymously(); // Cria uma sessão temporária que não exige cadastro
   } catch (e) {
     debugPrint("Erro ao logar anonimamente: $e"); // Caso de algum erro
   }
@@ -88,21 +92,26 @@ void main() async { // Executa quando o app é iniciado
   runApp(const AppCantina()); // Executa o primeiro Widget do app
 }
 
-class AppCantina extends StatelessWidget { // Widget principal do app
-  const AppCantina({super.key}); 
+class AppCantina extends StatelessWidget {
+  // Widget principal do app
+  const AppCantina({
+    super.key,
+  }); // Cria a chave do widget, que é usada para identificar o widget na árvore de widgets
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      // Configuração inicial do app
       title: "App Cantina",
-      debugShowCheckedModeBanner: false,
+      debugShowCheckedModeBanner: true,
       theme: ThemeData(primarySwatch: Colors.lightGreen),
-      home: const HomePage(),
+      home: const HomePage(), // Manda para pagina inicial do app
     );
   }
 }
 
 //Home Page
 class HomePage extends StatefulWidget {
+  // Todas as telas do app possuem um StatefulWidget, isso mantém o estado estático do widget, porém o build cria um estado que se altera, assim o widget é reconstruído, e o estado é mantido
   const HomePage({super.key});
 
   @override
@@ -527,6 +536,16 @@ class _CarrinhoCompra extends State<CarrinhoCompra> {
     }
     return Scaffold(
       appBar: AppBar(title: const Text('Carrinho')),
+      bottomNavigationBar: const BottomAppBar(
+        shape: CircularNotchedRectangle(),
+        color: Colors.green,
+        child: IconTheme(
+          data: IconThemeData(color: Colors.green),
+          child: Row(
+            children: <Widget>[SizedBox(height: 64), Text("Cantina Donieda")],
+          ),
+        ),
+      ),
       body: _carrinho.isEmpty
           ? const Center(child: Text('Carrinho vazio'))
           : Column(
@@ -603,6 +622,7 @@ class TelaPagamento extends StatefulWidget {
 }
 
 class _TelaPagamentoState extends State<TelaPagamento> {
+
   bool contaPaga = false;
   String idPedido = "";
   String gerarPixPayload({
@@ -668,6 +688,16 @@ class _TelaPagamentoState extends State<TelaPagamento> {
 
     return Scaffold(
       appBar: AppBar(title: const Text("Pagamento Pix")),
+      bottomNavigationBar: const BottomAppBar(
+        shape: CircularNotchedRectangle(),
+        color: Colors.green,
+        child: IconTheme(
+          data: IconThemeData(color: Colors.green),
+          child: Row(
+            children: <Widget>[SizedBox(height: 64), Text("Cantina Donieda")],
+          ),
+        ),
+      ),
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -740,6 +770,58 @@ class _TelaPagamentoState extends State<TelaPagamento> {
               child: const Text("Confirma Pedido!"),
             ),
 
+            if (contaPaga)
+              ElevatedButton(
+                onPressed: () async {
+                  try {
+                    await FirebaseFirestore.instance
+                        .collection('pedidos')
+                        .doc(idPedido)
+                        .delete();
+
+                    for (var produto in _carrinho) {
+                      var query = await FirebaseFirestore.instance
+                          .collection('produtos')
+                          .where('nome', isEqualTo: produto.nome)
+                          .get();
+
+                      if (query.docs.isNotEmpty) {
+                        await FirebaseFirestore.instance
+                            .collection('produtos')
+                            .doc(query.docs.first.id)
+                            .update({
+                              'qnt': FieldValue.increment(produto.qntComprada),
+                            });
+                      }
+                    }
+
+                    if (!mounted) return; //verifica se ele existekk
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Pedido foi excluido com sucesso!'),
+                      ),
+                    );
+
+                    Future.delayed(const Duration(seconds: 1), () {});
+
+                    if (!mounted) return;
+                    Navigator.pushReplacement(
+                      // ignore: use_build_context_synchronously
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const PaginaCardapio(),
+                      ),
+                    );
+                  } catch (e) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Erro ao deletar: $e')),
+                    );
+                  }
+                },
+                child: const Text("Deletar Pedido"),
+              ),
             if (contaPaga)
               Padding(
                 padding: const EdgeInsets.all(16),
@@ -902,83 +984,39 @@ class HubAdm extends StatefulWidget {
 }
 
 class _HubAdm extends State<HubAdm> {
+  int _currentIndex = 0;
+
+  final List<Widget> pages = [
+    AreaAdm(),
+    ProdutosArquivados(),
+    Estoque(),
+    NovoProduto(),
+    CriarMarmita(),
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Área do Administrador")),
-      body: Center(
-        child: Column(
-          //crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const AreaAdm()),
-                  );
-                },
-                child: const Text("Área dos Pedidos"),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ProdutosArquivados(),
-                    ),
-                  );
-                },
-                child: const Text("Produtos Arquivados"),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const Estoque()),
-                  );
-                },
-                child: const Text("Estoque"),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const NovoProduto(),
-                    ),
-                  );
-                },
-                child: const Text("Cadastrar Produto"),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const CriarMarmita(),
-                    ),
-                  );
-                },
-                child: const Text("Cadastrar Marmita"),
-              ),
-            ),
-          ],
-        ),
+      body: pages[_currentIndex],
+      bottomNavigationBar: NavigationBar(
+        onDestinationSelected: (value) {
+          setState(() {
+            _currentIndex = value;
+          });
+        },
+        destinations: [
+          NavigationDestination(icon: Icon(Icons.home), label: 'Pedidos'),
+          NavigationDestination(icon: Icon(Icons.archive), label: 'Arquivados'),
+          NavigationDestination(icon: Icon(Icons.inventory), label: 'Estoque'),
+          NavigationDestination(
+            icon: Icon(Icons.restaurant),
+            label: 'Cadastrar Produto',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.set_meal),
+            label: 'Cadastrar Marmita',
+          ),
+        ],
       ),
     );
   }
@@ -992,21 +1030,59 @@ class AreaAdm extends StatefulWidget {
 }
 
 class _AreaAdm extends State<AreaAdm> {
+  final TextEditingController _controller = TextEditingController();
+  // ignore: unused_field
+  List<Map<String, dynamic>> _resultados = [];
+  String termoBusca = '';
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void onPesquisa(String valor) {
+    setState(() {
+      termoBusca = valor.trim();
+    });
+  }
+
+  Future<void> buscarPedidos(String termo) async {
+    if (termo.trim().isEmpty) {
+      return;
+    }
+    final firestore = FirebaseFirestore.instance;
+    final resultado = await firestore
+        .collection('pedidos')
+        .orderBy('id_pedido')
+        .startAt([termo])
+        .endAt([termo + '\uf8ff'])
+        .get();
+
+    setState(() {
+      _resultados = resultado.docs.map((doc) => doc.data()).toList();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Pedidos")),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text("Voltar"),
+          SizedBox(
+            width: 300,
+            child: TextField(
+              controller: _controller,
+              decoration: const InputDecoration(
+                hintText: 'Digite o ID do pedido',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+              ),
+              onChanged: onPesquisa,
             ),
           ),
+
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -1023,20 +1099,27 @@ class _AreaAdm extends State<AreaAdm> {
                   return data['arquivado'] != true;
                 }).toList();
 
-                if (pedidosAtivos.isEmpty) {
+                final pedidosFiltrados = pedidosAtivos.where((pedido) {
+                  final data = pedido.data() as Map<String, dynamic>? ?? {};
+                  final idPedido = data['id_pedido']?.toString() ?? '';
+                  if (termoBusca.isEmpty) return true;
+                  return idPedido.toLowerCase().startsWith(
+                    termoBusca.toLowerCase(),
+                  );
+                }).toList();
+
+                if (pedidosFiltrados.isEmpty) {
                   return const Center(child: Text("Nenhum pedido ainda"));
                 }
 
                 return ListView.builder(
-                  itemCount: pedidosAtivos.length,
+                  itemCount: pedidosFiltrados.length,
                   itemBuilder: (context, index) {
-                    final pedido = pedidosAtivos[index];
+                    final pedido = pedidosFiltrados[index];
                     final pedidoData =
                         pedido.data() as Map<String, dynamic>? ?? {};
-                    final produtos = pedidoData['produtos'];
-                    final listaProdutos = produtos is List
-                        ? produtos
-                        : <dynamic>[];
+                    final produtos = pedidoData['produtos'] ?? [];
+                    final listaProdutos = produtos is List ? produtos : [];
 
                     return Card(
                       margin: const EdgeInsets.all(10),
@@ -1145,21 +1228,59 @@ class ProdutosArquivados extends StatefulWidget {
 }
 
 class _ProdutosArquivados extends State<ProdutosArquivados> {
+  final TextEditingController _controller = TextEditingController();
+  // ignore: unused_field
+  List<Map<String, dynamic>> _resultados = [];
+  String termoBusca = '';
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void onPesquisa(String valor) {
+    setState(() {
+      termoBusca = valor.trim();
+    });
+  }
+
+  Future<void> buscarPedidos(String termo) async {
+    if (termo.trim().isEmpty) {
+      return;
+    }
+    final firestore = FirebaseFirestore.instance;
+    final resultado = await firestore
+        .collection('pedidos')
+        .orderBy('id_pedido')
+        .startAt([termo])
+        .endAt([termo + '\uf8ff'])
+        .get();
+
+    setState(() {
+      _resultados = resultado.docs.map((doc) => doc.data()).toList();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Arquivados")),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text("Voltar"),
+          SizedBox(
+            width: 300,
+            child: TextField(
+              controller: _controller,
+              decoration: const InputDecoration(
+                hintText: 'Digite o ID do pedido',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+              ),
+              onChanged: onPesquisa,
             ),
           ),
+
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -1176,14 +1297,23 @@ class _ProdutosArquivados extends State<ProdutosArquivados> {
                   return data['arquivado'] == true;
                 }).toList();
 
-                if (pedidosArquivados.isEmpty) {
+                final pedidosFiltrados = pedidosArquivados.where((pedido) {
+                  final data = pedido.data() as Map<String, dynamic>? ?? {};
+                  final idPedido = data['id_pedido']?.toString() ?? '';
+                  if (termoBusca.isEmpty) return true;
+                  return idPedido.toLowerCase().startsWith(
+                    termoBusca.toLowerCase(),
+                  );
+                }).toList();
+
+                if (pedidosFiltrados.isEmpty) {
                   return const Center(child: Text("Nenhum pedido ainda"));
                 }
 
                 return ListView.builder(
-                  itemCount: pedidosArquivados.length,
+                  itemCount: pedidosFiltrados.length,
                   itemBuilder: (context, index) {
-                    final pedido = pedidosArquivados[index];
+                    final pedido = pedidosFiltrados[index];
                     final pedidoData =
                         pedido.data() as Map<String, dynamic>? ?? {};
                     final produtos = pedidoData['produtos'];
@@ -1323,15 +1453,6 @@ class Estoque extends StatelessWidget {
 
           return Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  child: const Text("Voltar"),
-                ),
-              ),
               ListView.builder(
                 shrinkWrap: true,
                 itemCount: produtos.length,
@@ -1550,18 +1671,8 @@ class _NovoProdutoState extends State<NovoProduto> {
                     ),
                   );
                 },
-
                 child: Text('Salvar'),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  child: const Text("Voltar"),
-                ),
-              ),
+              )
             ],
           ),
         ),
@@ -1756,16 +1867,7 @@ class _CriarMarmitaState extends State<CriarMarmita> {
                 },
 
                 child: Text('Salvar'),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  child: const Text("Voltar"),
-                ),
-              ),
+              )
             ],
           ),
         ),

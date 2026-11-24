@@ -1,3 +1,4 @@
 {
-    "cmake.sourceDirectory": "C:/Flutter/ProjetosFlutter/app-cantina/windows"
+    "cmake.sourceDirectory": "C:/Flutter/ProjetosFlutter/app-cantina/windows",
+    "claudeCodeChat.permissions.yoloMode": false
 }

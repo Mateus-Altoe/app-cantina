@@ -205,7 +205,14 @@ class _PaginaCardapioState extends State<PaginaCardapio> {
               {};
 
           for (var produto in produtos) {
-            final categoria = produto['categoria'];
+            final produtoData = produto.data() as Map<String, dynamic>? ?? {};
+            final categoriaDoProduto = produtoData['categoria']
+                ?.toString()
+                .trim();
+            final categoria =
+                categoriaDoProduto == null || categoriaDoProduto.isEmpty
+                ? 'Sem categoria'
+                : categoriaDoProduto;
             if (!produtosAgrupados.containsKey(categoria)) {
               produtosAgrupados[categoria] = [];
             }
@@ -467,13 +474,14 @@ class _PaginaCardapioState extends State<PaginaCardapio> {
           ),
         ),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButtonLocation: FloatingActionButtonLocation.miniCenterDocked,
 
       floatingActionButton: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           FloatingActionButton(
             heroTag: 'btn_carrinho',
+            shape: const CircleBorder(),
             onPressed: () async {
               if (_carrinho.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -622,7 +630,6 @@ class TelaPagamento extends StatefulWidget {
 }
 
 class _TelaPagamentoState extends State<TelaPagamento> {
-
   bool contaPaga = false;
   String idPedido = "";
   String gerarPixPayload({
@@ -638,6 +645,7 @@ class _TelaPagamentoState extends State<TelaPagamento> {
     String payload = "";
 
     payload += format("00", "01");
+    payload += format("01", "12");
     payload += format(
       "26",
       format("00", "BR.GOV.BCB.PIX") + format("01", chave),
@@ -857,7 +865,7 @@ class _AreaLogin extends State<AreaLogin> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 95, 41, 41),
+      backgroundColor: const Color.fromARGB(255, 3, 107, 16),
       body: Padding(
         padding: EdgeInsets.all(30),
         child: Center(
@@ -999,6 +1007,7 @@ class _HubAdm extends State<HubAdm> {
     return Scaffold(
       body: pages[_currentIndex],
       bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
         onDestinationSelected: (value) {
           setState(() {
             _currentIndex = value;
@@ -1436,8 +1445,16 @@ class _ProdutosArquivados extends State<ProdutosArquivados> {
 }
 
 //Estoque
-class Estoque extends StatelessWidget {
+class Estoque extends StatefulWidget {
   const Estoque({super.key});
+
+  @override
+  State<Estoque> createState() => _EstoqueState();
+}
+
+class _EstoqueState extends State<Estoque> {
+  String _termoBusca = '';
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1450,60 +1467,81 @@ class Estoque extends StatelessWidget {
           }
 
           final produtos = snapshot.data!.docs;
+          final produtosFiltrados = produtos.where((produto) {
+            final dados = produto.data() as Map<String, dynamic>;
+            final nome = dados['nome']?.toString() ?? '';
+            return nome.toLowerCase().contains(_termoBusca.toLowerCase());
+          }).toList();
 
           return Column(
             children: [
-              ListView.builder(
-                shrinkWrap: true,
-                itemCount: produtos.length,
-                itemBuilder: (context, index) {
-                  var produto = produtos[index];
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: TextField(
+                  decoration: const InputDecoration(
+                    hintText: 'Buscar produto pelo nome',
+                    prefixIcon: Icon(Icons.search),
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (valor) {
+                    setState(() {
+                      _termoBusca = valor.trim();
+                    });
+                  },
+                ),
+              ),
+              Expanded(
+                child: produtosFiltrados.isEmpty
+                    ? const Center(child: Text('Nenhum produto encontrado'))
+                    : ListView.builder(
+                        itemCount: produtosFiltrados.length,
+                        itemBuilder: (context, index) {
+                          final produto = produtosFiltrados[index];
+                          final dados = produto.data() as Map<String, dynamic>;
+                          final nome = dados['nome']?.toString() ?? 'Sem nome';
+                          final quantidade =
+                              (dados['qnt'] as num?)?.toInt() ?? 0;
 
-                  return ListTile(
-                    leading: IconButton(
-                      icon: const Icon(Icons.delete),
-                      onPressed: () {
-                        FirebaseFirestore.instance
-                            .collection('produtos')
-                            .doc(produto.id)
-                            .delete();
-                      },
-                    ),
-                    title: Text(produto['nome']),
-                    subtitle: Text("Quantidade: ${produto['qnt']}"),
-
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.remove),
-                          onPressed: () async {
-                            final produto = produtos[index];
-
-                            if ((produto['qnt'] as int) > 0) {
-                              await FirebaseFirestore.instance
-                                  .collection('produtos')
-                                  .doc(produto.id)
-                                  .update({'qnt': (produto['qnt']) - 1});
-                            }
-                          },
-                        ),
-
-                        IconButton(
-                          icon: const Icon(Icons.add),
-                          onPressed: () async {
-                            final produto = produtos[index];
-
-                            await FirebaseFirestore.instance
-                                .collection('produtos')
-                                .doc(produto.id)
-                                .update({'qnt': (produto['qnt']) + 1});
-                          },
-                        ),
-                      ],
-                    ),
-                  );
-                },
+                          return ListTile(
+                            leading: IconButton(
+                              icon: const Icon(Icons.delete),
+                              onPressed: () {
+                                FirebaseFirestore.instance
+                                    .collection('produtos')
+                                    .doc(produto.id)
+                                    .delete();
+                              },
+                            ),
+                            title: Text(nome),
+                            subtitle: Text('Quantidade: $quantidade'),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.remove),
+                                  onPressed: () async {
+                                    if (quantidade > 0) {
+                                      await FirebaseFirestore.instance
+                                          .collection('produtos')
+                                          .doc(produto.id)
+                                          .update({'qnt': quantidade - 1});
+                                    }
+                                  },
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.add),
+                                  onPressed: () async {
+                                    await FirebaseFirestore.instance
+                                        .collection('produtos')
+                                        .doc(produto.id)
+                                        .update({'qnt': quantidade + 1});
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
               ),
             ],
           );
